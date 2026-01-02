@@ -117,7 +117,7 @@ extension SwiftSetting {
     static let globalConcurrency: Self = .enableUpcomingFeature("GlobalConcurrency")                          // SE-0412, Swift 5.10, SwiftPM 5.10+
 }
 
-extension SwiftSetting: CaseIterable {
+extension SwiftSetting: @retroactive CaseIterable {
     public static var allCases: [Self] {
         [
             .forwardTrailingClosures,
