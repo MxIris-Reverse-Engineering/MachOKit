@@ -28,6 +28,12 @@ public protocol ObjCHeaderOptimizationROProtocol: Sendable {
     /// - Parameter cache: DyldCache to which `self` belongs
     /// - Returns: header infos
     func headerInfos(in cache: FullDyldCache) -> AnyRandomAccessCollection<HeaderInfo>?
+    /// Header info at specified index (O(1) direct access)
+    /// - Parameters:
+    ///   - index: index of header info
+    ///   - cache: DyldCacheLoaded to which `self` belongs
+    /// - Returns: header info at index, or nil if index is out of bounds
+    func headerInfo(at index: Int, in cache: DyldCacheLoaded) -> HeaderInfo?
 }
 
 public struct ObjCHeaderOptimizationRO64: LayoutWrapper, ObjCHeaderOptimizationROProtocol {
@@ -111,6 +117,24 @@ extension ObjCHeaderOptimizationRO64 {
             })
         )
     }
+
+    public func headerInfo(at index: Int, in cache: DyldCacheLoaded) -> HeaderInfo? {
+        guard index >= 0 && index < count else { return nil }
+        precondition(
+            layout.entsize >= HeaderInfo.layoutSize,
+            "entsize is smaller than HeaderInfo"
+        )
+        let baseOffset = offset + layoutSize
+        let elementOffset = baseOffset + entrySize * index
+        let layout: HeaderInfo.Layout = cache.ptr
+            .advanced(by: elementOffset)
+            .load(as: HeaderInfo.Layout.self)
+        return HeaderInfo(
+            layout: layout,
+            offset: elementOffset,
+            index: index
+        )
+    }
 }
 
 public struct ObjCHeaderOptimizationRO32: LayoutWrapper, ObjCHeaderOptimizationROProtocol {
@@ -191,6 +215,24 @@ extension ObjCHeaderOptimizationRO32 {
                     index: $0
                 )
             })
+        )
+    }
+
+    public func headerInfo(at index: Int, in cache: DyldCacheLoaded) -> HeaderInfo? {
+        guard index >= 0 && index < count else { return nil }
+        precondition(
+            layout.entsize >= HeaderInfo.layoutSize,
+            "entsize is smaller than HeaderInfo"
+        )
+        let baseOffset = offset + layoutSize
+        let elementOffset = baseOffset + entrySize * index
+        let layout: HeaderInfo.Layout = cache.ptr
+            .advanced(by: elementOffset)
+            .load(as: HeaderInfo.Layout.self)
+        return HeaderInfo(
+            layout: layout,
+            offset: elementOffset,
+            index: index
         )
     }
 }
