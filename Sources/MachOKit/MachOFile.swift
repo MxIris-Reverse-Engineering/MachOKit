@@ -28,11 +28,11 @@ public class MachOFile: MachORepresentable {
     // Retain the cache to which `self` belongs
     private var _fullCache: FullDyldCache?
     private var _cache: DyldCache?
+    /// Guards `_cache` / `_fullCache` lazy initialization against data races.
+    private let _cacheLock = NSRecursiveLock()
 
-    // Cache for chained fixups lookup
-    private var _chainedFixupsCache: DyldChainedFixups?
-    private var _fixupPointersCache: [Int: DyldChainedFixupPointer]?
-    private var _chainedImportsCache: [DyldChainedImport]?
+    /// Backing store for the ``cached`` view.
+    private let _cacheStorage = MachOCacheStorage<MachOFile>()
 
     /// A Boolean value that indicates whether the byte is swapped or not.
     ///
@@ -610,6 +610,8 @@ extension MachOFile {
     /// This is mainly used when the Mach-O file originates from a dyld shared cache and requires
     /// access to symbols, sections, or other data spread across subcaches.
     public var cache: DyldCache? {
+        _cacheLock.lock()
+        defer { _cacheLock.unlock() }
         if let _cache { return _cache }
         if let fullCache {
             return fullCache.cache(for: url)
@@ -629,6 +631,8 @@ extension MachOFile {
     /// This is primarily used when the Mach-O file originates from a dyld shared cache and data in other
     /// subcache files needs to be accessed.
     public var fullCache: FullDyldCache? {
+        _cacheLock.lock()
+        defer { _cacheLock.unlock() }
         if let _fullCache { return _fullCache }
         if let _cache,
            let _fullCache = _cache._fullCache {
@@ -775,67 +779,23 @@ extension MachOFile {
 }
 
 extension MachOFile {
-    // MARK: - Chained Fixups Cache
+    // MARK: - Cached View
 
-    /// Cached `DyldChainedFixups` instance for this Mach-O file.
+    /// A concurrency-safe, caching view over this Mach-O file.
     ///
-    /// This property lazily caches the chained fixups data to avoid
-    /// repeatedly reading from the file and creating new instances.
-    private var cachedChainedFixups: DyldChainedFixups? {
-        if let cached = _chainedFixupsCache {
-            return cached
-        }
-        _chainedFixupsCache = dyldChainedFixups
-        return _chainedFixupsCache
+    /// Heavy parsing results — load commands, symbols, chained fixups, and so
+    /// on — are memoized the first time they are accessed through this view.
+    /// The cache is tied to this `MachOFile` instance.
+    public var cached: MachOCached<MachOFile> {
+        MachOCached(base: self, storage: _cacheStorage)
     }
 
-    /// Cached mapping from offset to `DyldChainedFixupPointer`.
-    ///
-    /// This cache is built lazily on first access and maps file offsets
-    /// to their corresponding fixup pointers for O(1) lookup.
-    private var fixupPointersCache: [Int: DyldChainedFixupPointer] {
-        if let cache = _fixupPointersCache {
-            return cache
-        }
-
-        guard let chainedFixup = cachedChainedFixups,
-              let startsInImage = chainedFixup.startsInImage else {
-            _fixupPointersCache = [:]
-            return [:]
-        }
-
-        var cache = [Int: DyldChainedFixupPointer]()
-        let startsInSegments = chainedFixup.startsInSegments(of: startsInImage)
-
-        for segment in startsInSegments {
-            let pointers = chainedFixup.pointers(of: segment, in: self)
-            for pointer in pointers {
-                cache[pointer.offset] = pointer
-            }
-        }
-
-        _fixupPointersCache = cache
-        return cache
-    }
-
-    /// Cached imports array from chained fixups.
-    private var cachedChainedImports: [DyldChainedImport] {
-        if let cache = _chainedImportsCache {
-            return cache
-        }
-        let imports = cachedChainedFixups?.imports ?? []
-        _chainedImportsCache = imports
-        return imports
-    }
-
-    /// Clears all chained fixups caches.
+    /// Clears the chained fixups caches.
     ///
     /// Call this method if the underlying file data has changed
     /// and the caches need to be rebuilt.
     public func invalidateChainedFixupsCache() {
-        _chainedFixupsCache = nil
-        _fixupPointersCache = nil
-        _chainedImportsCache = nil
+        _cacheStorage.invalidateChainedFixups()
     }
 }
 
@@ -844,67 +804,17 @@ extension MachOFile {
 
     // https://github.com/apple-oss-distributions/dyld/blob/d552c40cd1de105f0ec95008e0e0c0972de43456/common/MetadataVisitor.cpp#L262
     public func resolveRebase(at offset: UInt64) -> UInt64? {
-        if isLoadedFromDyldCache,
-           let cache = self.cache {
-            return cache.resolveRebase(at: offset)
-        }
-
-        guard let pointer = fixupPointersCache[Int(offset)] else {
-            return nil
-        }
-
-        guard pointer.fixupInfo.rebase != nil,
-              let rebaseOffset = pointer.rebaseTargetRuntimeOffset(for: self) else {
-            return nil
-        }
-        return rebaseOffset
+        _cacheStorage.resolveRebase(of: self, at: offset)
     }
 
     public func resolveOptionalRebase(at offset: UInt64) -> UInt64? {
-        if isLoadedFromDyldCache,
-           let cache = self.cache {
-            return cache.resolveOptionalRebase(at: offset)
-        }
-
-        guard let pointer = fixupPointersCache[Int(offset)] else {
-            return nil
-        }
-
-        guard pointer.fixupInfo.rebase != nil,
-              let rebaseOffset = pointer.rebaseTargetRuntimeOffset(for: self) else {
-            return nil
-        }
-        if is64Bit {
-            let value: UInt64 = try! fileHandle.read(
-                offset: numericCast(headerStartOffset + pointer.offset)
-            )
-            if value == 0 { return nil }
-        } else {
-            let value: UInt32 = try! fileHandle.read(
-                offset: numericCast(headerStartOffset + pointer.offset)
-            )
-            if value == 0 { return nil }
-        }
-        return rebaseOffset
+        _cacheStorage.resolveOptionalRebase(of: self, at: offset)
     }
 
     public func resolveBind(
         at offset: UInt64
     ) -> (DyldChainedImport, addend: UInt64)? {
-        guard let pointer = fixupPointersCache[Int(offset)] else {
-            return nil
-        }
-
-        guard pointer.fixupInfo.bind != nil,
-              let (ordinal, addend) = pointer.bindOrdinalAndAddend(for: self) else {
-            return nil
-        }
-
-        let imports = cachedChainedImports
-        guard ordinal >= 0 && ordinal < imports.count else {
-            return nil
-        }
-        return (imports[ordinal], addend)
+        _cacheStorage.resolveBind(of: self, at: offset)
     }
 }
 

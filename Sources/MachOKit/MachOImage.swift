@@ -47,6 +47,13 @@ public struct MachOImage: MachORepresentable {
 
     public let loadCommands: LoadCommands
 
+    /// Backing store for the ``cached`` view.
+    ///
+    /// `MachOImage` is a value type, so this `class` is the outboard object
+    /// that carries the cache: copies of the same image value share it, while
+    /// a freshly constructed `MachOImage` starts with an empty cache.
+    private let _cacheStorage = MachOCacheStorage<MachOImage>()
+
     /// Address of load commands list start
     public var cmdsStartPtr: UnsafeRawPointer {
         ptr.advanced(by: headerSize)
@@ -67,6 +74,30 @@ public struct MachOImage: MachORepresentable {
                 by: is64Bit ? MemoryLayout<mach_header_64>.size : MemoryLayout<mach_header>.size
             )
         loadCommands = .init(start: start, numberOfCommands: Int(header.ncmds))
+    }
+}
+
+extension MachOImage {
+    /// A concurrency-safe, caching view over this Mach-O image.
+    ///
+    /// Heavy parsing results are memoized the first time they are accessed
+    /// through this view.
+    ///
+    /// - Important: The cache is carried by an outboard `class` stored in this
+    ///   `MachOImage` value. Copies of the *same* image value share it, but a
+    ///   freshly constructed `MachOImage` starts with an empty cache. In
+    ///   particular every call to `MachOImage.current()` / `MachOImage(name:)`
+    ///   returns a new value with its own empty cache — reuse a single image
+    ///   value to benefit from caching:
+    ///
+    ///   ```swift
+    ///   let image = MachOImage.current()
+    ///   let view = image.cached
+    ///   _ = view.symbols   // parsed
+    ///   _ = view.symbols   // cache hit
+    ///   ```
+    public var cached: MachOCached<MachOImage> {
+        MachOCached(base: self, storage: _cacheStorage)
     }
 }
 
