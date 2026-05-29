@@ -235,4 +235,27 @@ extension MachOCached {
     var cachedSymbolsArray: [Base.Symbol] {
         storage.memoized(\.symbolsArray) { Array(base.symbols) }
     }
+
+    /// `symbol name -> indices` index over ``cachedSymbolsArray``, built once.
+    ///
+    /// Mirrors how `Sequence.named(_:mangled:)` matches a query when
+    /// `mangled == true`: a symbol named `s` is reachable both by its full
+    /// `name` and by `name` with its first character dropped (the
+    /// `strcmp(query, name + 1)` branch). Indices are appended in array order,
+    /// so a lookup returns symbols in the same order the linear scan would.
+    var cachedSymbolsByName: [String: [Int]] {
+        storage.memoized(\.symbolsByName) {
+            let symbols = cachedSymbolsArray
+            var index: [String: [Int]] = [:]
+            index.reserveCapacity(symbols.count)
+            for position in symbols.indices {
+                let name = symbols[position].name
+                index[name, default: []].append(position)
+                if !name.isEmpty {
+                    index[String(name.dropFirst()), default: []].append(position)
+                }
+            }
+            return index
+        }
+    }
 }

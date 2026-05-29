@@ -34,6 +34,10 @@ final class MachOCacheStorage<Base: MachORepresentable> {
     var symbols32: CacheSlot<Base.Symbols?> = .notComputed
     /// Materialized symbol array — backs the parameterized symbol lookups.
     var symbolsArray: CacheSlot<[Base.Symbol]> = .notComputed
+    /// `symbol name` (and the name with its first character dropped) -> indices
+    /// into `symbolsArray`. Backs the `symbols(named:)` fast path so a repeated
+    /// by-name lookup is O(1) instead of an O(n) `strcmp` scan.
+    var symbolsByName: CacheSlot<[String: [Int]]> = .notComputed
     var indirectSymbols: CacheSlot<Base.IndirectSymbols?> = .notComputed
     var symbolStrings: CacheSlot<Base.Strings?> = .notComputed
     var cStrings: CacheSlot<Base.Strings?> = .notComputed
@@ -49,6 +53,10 @@ final class MachOCacheStorage<Base: MachORepresentable> {
     var lazyBindOperations: CacheSlot<Base.BindOperations?> = .notComputed
     var exportTrie: CacheSlot<Base.ExportTrie?> = .notComputed
     var exportedSymbols: CacheSlot<[ExportedSymbol]> = .notComputed
+    /// `exported symbol name` -> symbol. Backs `exportedSymbol(named:)` so a
+    /// repeated by-name export lookup is O(1) instead of walking the export
+    /// trie from the root on every call.
+    var exportedSymbolsByName: CacheSlot<[String: ExportedSymbol]> = .notComputed
     var bindingSymbols: CacheSlot<[BindingSymbol]> = .notComputed
     var weakBindingSymbols: CacheSlot<[BindingSymbol]> = .notComputed
     var lazyBindingSymbols: CacheSlot<[BindingSymbol]> = .notComputed
@@ -130,6 +138,7 @@ final class MachOCacheStorage<Base: MachORepresentable> {
         symbols64 = .notComputed
         symbols32 = .notComputed
         symbolsArray = .notComputed
+        symbolsByName = .notComputed
         indirectSymbols = .notComputed
         symbolStrings = .notComputed
         cStrings = .notComputed
@@ -145,6 +154,7 @@ final class MachOCacheStorage<Base: MachORepresentable> {
         lazyBindOperations = .notComputed
         exportTrie = .notComputed
         exportedSymbols = .notComputed
+        exportedSymbolsByName = .notComputed
         bindingSymbols = .notComputed
         weakBindingSymbols = .notComputed
         lazyBindingSymbols = .notComputed

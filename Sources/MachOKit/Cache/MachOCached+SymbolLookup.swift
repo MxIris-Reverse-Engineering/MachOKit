@@ -198,7 +198,13 @@ extension MachOCached {
 extension MachOCached where Base.Symbol == MachOFile.Symbol {
     /// Cached equivalent of `MachORepresentable.symbols(named:mangled:)`.
     public func symbols(named name: String, mangled: Bool = true) -> [Base.Symbol] {
-        cachedSymbolsArray.named(name, mangled: mangled)
+        // `mangled == false` needs per-symbol demangling, which the index does
+        // not cover — fall back to the linear `named(_:mangled:)` scan there.
+        guard mangled else {
+            return cachedSymbolsArray.named(name, mangled: false)
+        }
+        let symbols = cachedSymbolsArray
+        return (cachedSymbolsByName[name] ?? []).map { symbols[$0] }
     }
 
     /// Cached equivalent of `MachORepresentable.symbol(named:mangled:inSection:isGlobalOnly:)`.
@@ -227,7 +233,13 @@ extension MachOCached where Base.Symbol == MachOFile.Symbol {
 extension MachOCached where Base.Symbol == MachOImage.Symbol {
     /// Cached equivalent of `MachORepresentable.symbols(named:mangled:)`.
     public func symbols(named name: String, mangled: Bool = true) -> [Base.Symbol] {
-        cachedSymbolsArray.named(name, mangled: mangled)
+        // `mangled == false` needs per-symbol demangling, which the index does
+        // not cover — fall back to the linear `named(_:mangled:)` scan there.
+        guard mangled else {
+            return cachedSymbolsArray.named(name, mangled: false)
+        }
+        let symbols = cachedSymbolsArray
+        return (cachedSymbolsByName[name] ?? []).map { symbols[$0] }
     }
 
     /// Cached equivalent of `MachORepresentable.symbol(named:mangled:inSection:isGlobalOnly:)`.

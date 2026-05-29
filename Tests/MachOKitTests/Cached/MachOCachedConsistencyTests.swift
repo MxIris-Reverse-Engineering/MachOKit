@@ -68,6 +68,42 @@ final class MachOCachedConsistencyTests: XCTestCase {
         )
     }
 
+    /// The by-name index must return the same symbols, in the same order, as
+    /// the base's linear `symbols(named:)` scan.
+    func testMachOFileSymbolsNamedMatchesBase() throws {
+        let machO = try MachOCachedTestSupport.loadMachOFile()
+        let cached = machO.cached
+        let names = Array(machO.symbols)
+            .lazy
+            .map(\.name)
+            .filter { !$0.isEmpty }
+            .prefix(50)
+        guard !names.isEmpty else { throw XCTSkip("No named symbols") }
+        for name in names {
+            XCTAssertEqual(
+                cached.symbols(named: name).map(\.offset),
+                machO.symbols(named: name).map(\.offset),
+                "symbols(named: \(name))"
+            )
+        }
+    }
+
+    /// `exportedSymbol(named:)` must match `exportTrie.search(by:)`.
+    func testMachOFileExportedSymbolNamed() throws {
+        let machO = try MachOCachedTestSupport.loadMachOFile()
+        let cached = machO.cached
+        let names = machO.exportedSymbols.map(\.name).prefix(50)
+        guard !names.isEmpty else { throw XCTSkip("No exported symbols") }
+        for name in names {
+            XCTAssertEqual(
+                cached.exportedSymbol(named: name)?.offset,
+                machO.exportTrie?.search(by: name)?.offset,
+                "exportedSymbol(named: \(name))"
+            )
+        }
+        XCTAssertNil(cached.exportedSymbol(named: "\u{0}absent symbol\u{0}"))
+    }
+
     func testMachOFileResolveMatchesLegacyEntryPoint() throws {
         let machO = try MachOCachedTestSupport.loadMachOFile()
         let cached = machO.cached
@@ -110,6 +146,38 @@ extension MachOCachedConsistencyTests {
             cached.closestSymbol(at: probe.offset)?.offset,
             machO.closestSymbol(at: probe.offset)?.offset
         )
+    }
+
+    func testMachOImageSymbolsNamedMatchesBase() throws {
+        let machO = MachOImage.current()
+        let cached = machO.cached
+        let names = Array(machO.symbols)
+            .lazy
+            .map(\.name)
+            .filter { !$0.isEmpty }
+            .prefix(50)
+        guard !names.isEmpty else { throw XCTSkip("No named symbols") }
+        for name in names {
+            XCTAssertEqual(
+                cached.symbols(named: name).map(\.offset),
+                machO.symbols(named: name).map(\.offset),
+                "symbols(named: \(name))"
+            )
+        }
+    }
+
+    func testMachOImageExportedSymbolNamed() throws {
+        let machO = MachOImage.current()
+        let cached = machO.cached
+        let names = machO.exportedSymbols.map(\.name).prefix(50)
+        guard !names.isEmpty else { throw XCTSkip("No exported symbols") }
+        for name in names {
+            XCTAssertEqual(
+                cached.exportedSymbol(named: name)?.offset,
+                machO.exportTrie?.search(by: name)?.offset,
+                "exportedSymbol(named: \(name))"
+            )
+        }
     }
 }
 #endif
