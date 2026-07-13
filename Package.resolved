@@ -1,5 +1,5 @@
 {
-  "originHash" : "e383328a12c016adeaba5a10339bfcb0d2b6fd532be729660d4f9d51fc021693",
+  "originHash" : "e089b18a53320d213cd5c0db082b1ad3434390ffc85bb33e660437eae250ba67",
   "pins" : [
     {
       "identity" : "objectarchivekit",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-asn1.git",
       "state" : {
-        "revision" : "9f542610331815e29cc3821d3b6f488db8715517",
-        "version" : "1.6.0"
+        "revision" : "a9a5efd40eaf558a2bcd48d64b1d1646be686008",
+        "version" : "1.7.1"
       }
     },
     {
@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/swift-fileio.git",
       "state" : {
-        "revision" : "d589ff3966f9f064574780f527449a946736b989",
-        "version" : "0.13.0"
+        "revision" : "e581ae04d4079c675042fa62aeabc5ba7480d3df",
+        "version" : "0.14.0"
       }
     },
     {
