@@ -210,7 +210,8 @@ extension ObjCHeaderOptimizationROProtocol {
         return headerInfos(in: cache)?
             .first(
                 where: {
-                    guard let offset = $0.resolvedMachOHeaderOffset(in: cache) else {
+                    guard let cacheForMachO = machO.cache,
+                          let offset = $0.resolvedMachOHeaderOffset(in: cacheForMachO) else {
                         return false
                     }
                     return machO.headerStartOffsetInCache == offset
