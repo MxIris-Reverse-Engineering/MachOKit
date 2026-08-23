@@ -43,9 +43,16 @@ let package = Package(
             url: "https://github.com/p-x9/ObjectArchiveKit.git",
             from: "0.5.0"
         ),
+        // Swift Crypto 4.4 and Swift ASN.1 1.7 require Swift 6.1. Keep the latest
+        // releases that support the Swift 6.0 Linux toolchain while allowing
+        // downstream packages to resolve Swift Crypto 4.
         .package(
             url: "https://github.com/apple/swift-crypto.git",
-            "1.0.0" ..< "5.0.0"
+            "1.0.0" ..< "4.4.0"
+        ),
+        .package(
+            url: "https://github.com/apple/swift-asn1.git",
+            "1.2.0" ..< "1.7.0"
         ),
     ],
     targets: [
@@ -58,6 +65,11 @@ let package = Package(
                 .product(
                     name: "Crypto",
                     package: "swift-crypto",
+                    condition: .when(platforms: linuxPlatforms)
+                ),
+                .product(
+                    name: "SwiftASN1",
+                    package: "swift-asn1",
                     condition: .when(platforms: linuxPlatforms)
                 )
             ],
