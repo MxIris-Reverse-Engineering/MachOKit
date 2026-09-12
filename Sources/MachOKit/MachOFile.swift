@@ -29,6 +29,12 @@ public class MachOFile: MachORepresentable {
     // Retain the cache to which `self` belongs
     private var _fullCache: FullDyldCache?
     private var _cache: DyldCache?
+    // Memoizes whether the lazy `cache` getter has already tried
+    // `DyldCache.init(url:)`. A standalone (non-cache) MachOFile fails that
+    // init and leaves `_cache` nil, which is indistinguishable from "not yet
+    // attempted", so without this flag every `cache` access re-opens and
+    // re-parses the file from disk.
+    private var _cacheResolutionAttempted = false
 
     // Cache for chained fixups lookup
     private var _chainedFixupsCache: DyldChainedFixups?
@@ -637,7 +643,9 @@ extension MachOFile {
         if let _fullCache {
             return _fullCache.cache(for: url)
         }
+        if _cacheResolutionAttempted { return nil }
         _cache = try? .init(url: url)
+        _cacheResolutionAttempted = true
         return _cache
     }
 
