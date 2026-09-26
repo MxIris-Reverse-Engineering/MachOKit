@@ -96,7 +96,13 @@ let package = Package(
         ),
         .testTarget(
             name: "MachOKitTests",
-            dependencies: ["MachOKit", "MachOArchiveKit", "MachOKitReadable"]
+            dependencies: [
+                "MachOKit",
+                "MachOArchiveKit",
+                "MachOKitReadable",
+                // Builds a file-backed `MachOFile.DyldChainedFixups` from synthetic bytes.
+                .product(name: "FileIO", package: "swift-fileio"),
+            ]
         )
     ]
 )
