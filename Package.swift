@@ -100,7 +100,7 @@ let package = Package(
                 "MachOKit",
                 "MachOArchiveKit",
                 "MachOKitReadable",
-                // Builds a file-backed `MachOFile.DyldChainedFixups` from synthetic bytes.
+                // Builds file-backed readers from synthetic bytes.
                 .product(name: "FileIO", package: "swift-fileio"),
             ]
         )
