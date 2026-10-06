@@ -120,7 +120,11 @@ extension _DyldCacheFileRepresentable {
         case .v1:
             let value: UInt32 = fileHandle.read(offset: offset)
             guard !skipsZeroValue || value != 0 else { return nil }
-            runtimeOffset = numericCast(value) - unslidLoadAddress
+            // A slot holding no pointer can sit below the region start.
+            let (_runtimeOffset, overflow) = UInt64(value)
+                .subtractingReportingOverflow(unslidLoadAddress)
+            guard !overflow else { return nil }
+            runtimeOffset = _runtimeOffset
             onDiskDylibChainedPointerBaseAddress = unslidLoadAddress
 
         case let .v2(slideInfo):
@@ -174,7 +178,9 @@ extension _DyldCacheFileRepresentable {
             onDiskDylibChainedPointerBaseAddress = unslidLoadAddress
         }
 
-        return runtimeOffset + onDiskDylibChainedPointerBaseAddress
+        let (address, overflow) = runtimeOffset
+            .addingReportingOverflow(onDiskDylibChainedPointerBaseAddress)
+        return overflow ? nil : address
     }
 }
 

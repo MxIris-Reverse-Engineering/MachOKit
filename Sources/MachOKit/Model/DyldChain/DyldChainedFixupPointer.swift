@@ -78,26 +78,26 @@ extension DyldChainedFixupPointer {
             if rebase.isAuth {
                 return numericCast(rebase.target)
             } else {
-                var unpacked = rebase.unpackedTarget
+                let unpacked = rebase.unpackedTarget
                 if [.arm64e, .arm64e_firmware].contains(format) {
-                    unpacked -= preferedLoadAddress
+                    return Self.runtimeOffset(of: unpacked, preferedLoadAddress: preferedLoadAddress)
                 }
                 return unpacked
             }
         case ._64: fallthrough
         case ._64_offset:
-            var unpacked = rebase.unpackedTarget
+            let unpacked = rebase.unpackedTarget
             if format == ._64 {
-                unpacked -= preferedLoadAddress
+                return Self.runtimeOffset(of: unpacked, preferedLoadAddress: preferedLoadAddress)
             }
             return unpacked
         case ._64_kernel_cache: fallthrough
         case .x86_64_kernel_cache:
             return numericCast(rebase.target)
         case ._32:
-            return numericCast(rebase.target) - preferedLoadAddress
+            return Self.runtimeOffset(of: numericCast(rebase.target), preferedLoadAddress: preferedLoadAddress)
         case ._32_firmware:
-            return numericCast(rebase.target) - preferedLoadAddress
+            return Self.runtimeOffset(of: numericCast(rebase.target), preferedLoadAddress: preferedLoadAddress)
         case .arm64e_shared_cache:
             return numericCast(rebase.target)
         case .arm64e_segmented(let info): // FIXME: Check when new dylds are released.
@@ -115,11 +115,36 @@ extension DyldChainedFixupPointer {
                 targetSegOffset = rebase.layout.targetSegOffset
                 targetSegIndex = rebase.layout.targetSegIndex
             }
-            let segment = machO.segments[numericCast(targetSegIndex)]
-            return numericCast(segment.virtualMemoryAddress) - preferedLoadAddress + numericCast(targetSegOffset)
+            let segments = machO.segments
+            guard targetSegIndex < segments.count else {
+                return nil
+            }
+            let segment = segments[numericCast(targetSegIndex)]
+            guard let segmentOffset = Self.runtimeOffset(
+                of: numericCast(segment.virtualMemoryAddress),
+                preferedLoadAddress: preferedLoadAddress
+            ) else {
+                return nil
+            }
+            let (runtimeOffset, overflow) = segmentOffset
+                .addingReportingOverflow(numericCast(targetSegOffset))
+            return overflow ? nil : runtimeOffset
         default:
             return nil
         }
+    }
+
+    /// `address` as an offset from `preferedLoadAddress`, or `nil` when the
+    /// address lies below it: the slot was decoded as a pointer but holds
+    /// none — a small integer or a string read where a pointer was expected
+    /// — and has no runtime offset to report.
+    private static func runtimeOffset(
+        of address: UInt64,
+        preferedLoadAddress: UInt64
+    ) -> UInt64? {
+        let (runtimeOffset, overflow) = address
+            .subtractingReportingOverflow(preferedLoadAddress)
+        return overflow ? nil : runtimeOffset
     }
 
     public func rebaseTargetRuntimeOffset(for machO: MachOFile) -> UInt64? {
