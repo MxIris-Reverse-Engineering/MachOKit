@@ -45,9 +45,7 @@ final class FileHandleIdentityBox: FileHandleIdentity {}
 
 private final class FileHandleIdentityStorage: @unchecked Sendable {
     private let lock = NSLock()
-    #if canImport(ObjectiveC)
-    private let entries = NSMapTable<AnyObject, FileHandleIdentityBox>.weakToStrongObjects()
-    #else
+    #if !canImport(ObjectiveC)
     private var entries = WeakKeyStrongValueMap<AnyObject, FileHandleIdentityBox>()
     #endif
 
@@ -56,6 +54,20 @@ private final class FileHandleIdentityStorage: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
 
+        #if canImport(ObjectiveC)
+        // The identity hangs off the handle itself and goes away with it. A
+        // weak-to-strong `NSMapTable` keeps the value of a key that went away
+        // until the table next resizes, so the identity of a dropped cache —
+        // and whatever a client keyed on it — lived on.
+        let associationKey = UnsafeRawPointer(Unmanaged.passUnretained(self).toOpaque())
+        if let identity = objc_getAssociatedObject(fileHandle, associationKey) as? FileHandleIdentityBox {
+            return identity
+        }
+
+        let identity = FileHandleIdentityBox()
+        objc_setAssociatedObject(fileHandle, associationKey, identity, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        return identity
+        #else
         if let identity = entries.object(forKey: fileHandle) {
             return identity
         }
@@ -63,6 +75,7 @@ private final class FileHandleIdentityStorage: @unchecked Sendable {
         let identity = FileHandleIdentityBox()
         entries.setObject(identity, forKey: fileHandle)
         return identity
+        #endif
     }
 }
 
