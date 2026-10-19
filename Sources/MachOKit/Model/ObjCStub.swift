@@ -30,8 +30,7 @@ extension ObjCStub {
                let selector = selector(in: cache) {
                 return selector
             }
-            guard let fullCache = machO.fullCache else { return nil }
-            return selector(in: fullCache)
+            return nil
         }
 
         let pointerSize = machO.is64Bit
@@ -98,24 +97,31 @@ extension ObjCStub {
         guard let pointer = UnsafePointer<CChar>(bitPattern: UInt(targetAddress)) else {
             return nil
         }
-        return String(validatingCString: pointer)
+        return String(validatingUTF8: pointer)
     }
 }
 
 extension ObjCStub {
-    private func selector<Cache: _DyldCacheFileRepresentable>(
-        in cache: Cache
+    private func selector(
+        in cache: DyldCache
     ) -> String? {
         guard let selectorReference else { return nil }
-        guard let referenceOffset = cache.fileOffset(of: selectorReference),
-              let target = cache._resolveRebase(
+
+        guard let located = try? cache.locateValue({
+            $0.fileOffset(of: selectorReference)
+        }) else { return nil }
+
+        let cache = located.cache
+        let referenceOffset = located.value
+
+        guard let target = cache._resolveRebase(
                   at: referenceOffset,
                   skipsZeroValue: true
               ),
-              let stringOffset = cache.fileOffset(of: target) else {
+              let string = try? cache.locateValue({ $0.fileOffset(of: target) }) else {
             return nil
         }
-        return cache.fileHandle.readString(offset: stringOffset)
+        return string.cache.fileHandle.readString(offset: string.value)
     }
 
     private func adding(_ delta: Int, to address: UInt64) -> UInt64? {
