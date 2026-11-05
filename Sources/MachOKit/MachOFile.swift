@@ -644,6 +644,8 @@ extension MachOFile {
     /// This property attempts to lazily load the dyld cache based on the file URL.
     /// - If `_cache` has already been set, that value is returned.
     /// - If `_fullCache` has already been set, the corresponding subcache for this file URL is returned.
+    /// - If this file was not loaded from a dyld cache, there is none: `nil` is returned
+    ///   without touching the file system.
     /// - Otherwise, this attempts to initialize a new `DyldCache` using the file URL.
     ///
     /// This is mainly used when the Mach-O file originates from a dyld shared cache and requires
@@ -653,6 +655,10 @@ extension MachOFile {
         if let _fullCache {
             return _fullCache.cache(for: url)
         }
+        // Opening a standalone file as a cache fails, and a failure is not
+        // remembered: callers that ask on every read would map and unmap the
+        // whole file each time.
+        guard isLoadedFromDyldCache else { return nil }
         _cache = try? .init(url: url)
         return _cache
     }
@@ -662,6 +668,8 @@ extension MachOFile {
     /// This property attempts to lazily load the corresponding full dyld cache based on the file URL.
     /// - If `_fullCache` has already been set, that value is returned.
     /// - If `_cache` exists and its `_fullCache` is available, that is returned.
+    /// - If this file was not loaded from a dyld cache, there is none: `nil` is returned
+    ///   without touching the file system.
     /// - Otherwise, this tries to load a `FullDyldCache` from a path obtained by removing the last two path extensions of `url`.
     ///
     /// This is primarily used when the Mach-O file originates from a dyld shared cache and data in other
@@ -672,6 +680,7 @@ extension MachOFile {
            let _fullCache = _cache._fullCache {
             return _fullCache
         }
+        guard isLoadedFromDyldCache else { return nil }
         _fullCache = try? .init(
             url: url
                 .deletingPathExtension()
