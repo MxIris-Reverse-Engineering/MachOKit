@@ -37,13 +37,28 @@ public class DyldCache: DyldCacheRepresentable, _DyldCacheFileRepresentable {
     let _fileHandleIdentity: FileHandleIdentityBox
 
     // Retain the cache to which `self` belongs
-    internal var _fullCache: FullDyldCache?
+    private let memoizedFullCache = MemoizedReference<FullDyldCache>()
     // Retain the main cache
-    private var _mainCache: DyldCache?
+    private let memoizedMainCache: MemoizedReference<DyldCache>
     // Retain the symbol cache
-    internal var _symbolCache: DyldCache?
-    private var _mappingInfos: [DyldCacheMappingInfo]?
-    private var _mappingAndSlideInfos: [DyldCacheMappingAndSlideInfo]?
+    private let memoizedSymbolCache = MemoizedReference<DyldCache>()
+
+    // Read once, when the cache is opened: every read of an image in it maps
+    // an address through them, from as many threads as read the image.
+    private let _mappingInfos: [DyldCacheMappingInfo]?
+    private let _mappingAndSlideInfos: [DyldCacheMappingAndSlideInfo]?
+
+    // Retain the cache to which `self` belongs
+    internal var _fullCache: FullDyldCache? {
+        get { memoizedFullCache.value }
+        set { memoizedFullCache.replace(with: newValue) }
+    }
+
+    // Retain the symbol cache
+    internal var _symbolCache: DyldCache? {
+        get { memoizedSymbolCache.value }
+        set { memoizedSymbolCache.replace(with: newValue) }
+    }
 
     public var headerSize: Int {
         header.actualSize
@@ -97,6 +112,9 @@ public class DyldCache: DyldCacheRepresentable, _DyldCacheFileRepresentable {
             throw MachOKitError.invalidCpuType
         }
         self.cpu = cpu
+        self.memoizedMainCache = MemoizedReference()
+        self._mappingInfos = DyldCache.readMappingInfos(in: fileHandle, header: header)
+        self._mappingAndSlideInfos = DyldCache.readMappingAndSlideInfos(in: fileHandle, header: header)
     }
 
     /// Load sub dyld cache
@@ -120,7 +138,7 @@ public class DyldCache: DyldCacheRepresentable, _DyldCacheFileRepresentable {
         mainCache: DyldCache
     ) throws {
         try self.init(url: subcacheUrl)
-        self._mainCache = mainCache
+        self.memoizedMainCache.replace(with: mainCache)
         self._mainCacheHeader = mainCache.header
     }
 
@@ -137,45 +155,77 @@ public class DyldCache: DyldCacheRepresentable, _DyldCacheFileRepresentable {
             for: fileHandle
         )
         self.url = url
-        self.header = header ?? (
+        let resolvedHeader: DyldCacheHeader = header ?? (
             try! fileHandle.read(
                 offset: 0
             )
         )
+        self.header = resolvedHeader
         self.cpu = cpu
-        self._mainCache = mainCache
+        self.memoizedMainCache = MemoizedReference(mainCache)
         self._mainCacheHeader = mainCache?.header ?? mainCacheHeader
+        self._mappingInfos = DyldCache.readMappingInfos(in: fileHandle, header: resolvedHeader)
+        self._mappingAndSlideInfos = DyldCache.readMappingAndSlideInfos(in: fileHandle, header: resolvedHeader)
+    }
+}
+
+extension DyldCache {
+    /// The mapping infos `header` lists, read out of `fileHandle`.
+    static func readMappingInfos(
+        in fileHandle: File,
+        header: DyldCacheHeader
+    ) -> [DyldCacheMappingInfo]? {
+        guard header.mappingCount > 0 else { return nil }
+        let mappingInfos: DataSequence<DyldCacheMappingInfo> = fileHandle.readDataSequence(
+            offset: numericCast(header.mappingOffset),
+            numberOfElements: numericCast(header.mappingCount)
+        )
+        return Array(mappingInfos)
+    }
+
+    /// The mapping and slide infos `header` lists, read out of `fileHandle`.
+    static func readMappingAndSlideInfos(
+        in fileHandle: File,
+        header: DyldCacheHeader
+    ) -> [DyldCacheMappingAndSlideInfo]? {
+        guard header.mappingWithSlideCount > 0,
+              header.hasProperty(\.mappingWithSlideCount) else {
+            return nil
+        }
+        let mappingAndSlideInfos: DataSequence<DyldCacheMappingAndSlideInfo> = fileHandle.readDataSequence(
+            offset: numericCast(header.mappingWithSlideOffset),
+            numberOfElements: numericCast(header.mappingWithSlideCount)
+        )
+        return Array(mappingAndSlideInfos)
     }
 }
 
 extension DyldCache {
     public var mainCache: DyldCache? {
-        if let _mainCache { return _mainCache }
-        if let _fullCache {
-            if _fullCache.url == url { return self }
-            let mainCache = _fullCache.mainCache
-            _mainCache = mainCache
-            return mainCache
+        if let mainCache = memoizedMainCache.value { return mainCache }
+        if let fullCache = _fullCache {
+            if fullCache.url == url { return self }
+            return memoizedMainCache.publish(fullCache.mainCache)
         }
         if url.lastPathComponent.contains(".") {
             let url = url
                 .deletingPathExtension()
                 .deletingPathExtension()
-            _mainCache = try? .init(url: url)
-            _mainCache?._fullCache = _fullCache
-            return _mainCache
+            guard let mainCache = try? DyldCache(url: url) else { return nil }
+            mainCache._fullCache = _fullCache
+            return memoizedMainCache.publish(mainCache)
         } else {
             return self
         }
     }
 
     public var fullCache: FullDyldCache? {
-        if let _fullCache { return _fullCache }
+        if let fullCache = _fullCache { return fullCache }
         let url = url
             .deletingPathExtension()
             .deletingPathExtension()
-        _fullCache = try? .init(url: url)
-        return _fullCache
+        guard let fullCache = try? FullDyldCache(url: url) else { return nil }
+        return memoizedFullCache.publish(fullCache)
     }
 }
 
@@ -192,31 +242,12 @@ extension DyldCache {
 extension DyldCache {
     /// Sequence of mapping infos
     public var mappingInfos: [DyldCacheMappingInfo]? {
-        guard header.mappingCount > 0 else { return nil }
-        if let _mappingInfos { return _mappingInfos }
-        let mappingInfos: DataSequence<DyldCacheMappingInfo> = fileHandle.readDataSequence(
-            offset: numericCast(header.mappingOffset),
-            numberOfElements: numericCast(header.mappingCount)
-        )
-        let _mappingInfos = Array(mappingInfos)
-        self._mappingInfos = _mappingInfos
-        return _mappingInfos
+        _mappingInfos
     }
 
     /// Sequence of mapping and slide infos
     public var mappingAndSlideInfos: [DyldCacheMappingAndSlideInfo]? {
-        guard header.mappingWithSlideCount > 0,
-              header.hasProperty(\.mappingWithSlideCount) else {
-            return nil
-        }
-        if let _mappingAndSlideInfos { return _mappingAndSlideInfos }
-        let mappingAndSlideInfos: DataSequence<DyldCacheMappingAndSlideInfo> = fileHandle.readDataSequence(
-            offset: numericCast(header.mappingWithSlideOffset),
-            numberOfElements: numericCast(header.mappingWithSlideCount)
-        )
-        let _mappingAndSlideInfos = Array(mappingAndSlideInfos)
-        self._mappingAndSlideInfos = _mappingAndSlideInfos
-        return _mappingAndSlideInfos
+        _mappingAndSlideInfos
     }
 
     /// Sequence of image infos.
@@ -272,7 +303,7 @@ extension DyldCache {
     /// DyldCache containing unmapped local symbols
     public var symbolCache: DyldCache? {
         get throws {
-            if let _symbolCache { return _symbolCache }
+            if let symbolCache = _symbolCache { return symbolCache }
             guard header.hasProperty(\.symbolFileUUID),
                   header.symbolFileUUID != .zero else {
                 return nil
@@ -283,8 +314,7 @@ extension DyldCache {
                 subcacheUrl: .init(fileURLWithPath: path, isDirectory: false),
                 mainCacheHeader: mainCacheHeader
             )
-            _symbolCache = symbolCache
-            return symbolCache
+            return memoizedSymbolCache.publish(symbolCache)
         }
     }
 

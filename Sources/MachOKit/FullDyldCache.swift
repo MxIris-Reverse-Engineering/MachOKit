@@ -35,9 +35,16 @@ public class FullDyldCache: DyldCacheRepresentable, _DyldCacheFileRepresentable 
     let _fileHandleIdentity: FileHandleIdentityBox
 
     // Retain the symbol cache
-    private var _symbolCache: DyldCache?
-    private var _mappingInfos: [DyldCacheMappingInfo]?
-    private var _mappingAndSlideInfos: [DyldCacheMappingAndSlideInfo]?
+    private let memoizedSymbolCache = MemoizedReference<DyldCache>()
+
+    // Read once, when the cache is opened (see `DyldCache`).
+    private let _mappingInfos: [DyldCacheMappingInfo]?
+    private let _mappingAndSlideInfos: [DyldCacheMappingAndSlideInfo]?
+
+    // Retain the symbol cache
+    private var _symbolCache: DyldCache? {
+        memoizedSymbolCache.value
+    }
 
     public var headerSize: Int {
         header.actualSize
@@ -84,10 +91,37 @@ public class FullDyldCache: DyldCacheRepresentable, _DyldCacheFileRepresentable 
         self.header = mainCache.header
         self.cpu = mainCache.cpu
         self.subCacheSuffixes = subCacheSuffixes
-        self.subCacheHeaders = try fileHandle._files[1...].map {
+        let subCacheHeaders: [DyldCacheHeader] = try fileHandle._files[1...].map {
             try $0._file.read(offset: 0)
         }
+        self.subCacheHeaders = subCacheHeaders
         self.urls = urls
+
+        // Each file's own table, its file offsets moved to where the file
+        // starts in the concatenation — what assembling every file's
+        // `DyldCache` and asking it would answer.
+        let headersByFile = [mainCache.header] + subCacheHeaders
+        self._mappingInfos = zip(fileHandle._files, headersByFile).compactMap { file, header in
+            DyldCache.readMappingInfos(in: file._file, header: header)?
+                .map {
+                    $0.withFileOffset(
+                        $0.fileOffset + numericCast(file.offset)
+                    )
+                }
+        }.flatMap { $0 }
+        self._mappingAndSlideInfos = zip(fileHandle._files, headersByFile).compactMap { file, header in
+            DyldCache.readMappingAndSlideInfos(in: file._file, header: header)?
+                .map {
+                    $0.withFileOffset(
+                        $0.fileOffset + numericCast(file.offset)
+                    )
+                    .withSlideInfoFileOffset(
+                        $0.slideInfoFileOffset == 0
+                            ? 0
+                            : $0.slideInfoFileOffset + numericCast(file.offset)
+                    )
+                }
+        }.flatMap { $0 }
     }
 }
 
@@ -125,37 +159,12 @@ extension FullDyldCache {
 extension FullDyldCache {
     /// Sequence of mapping infos
     public var mappingInfos: [DyldCacheMappingInfo]? {
-        if let _mappingInfos { return _mappingInfos }
-        let mappingInfos = zip(fileHandle._files, allCaches).compactMap { file, cache in
-            cache.mappingInfos?
-                .map {
-                    $0.withFileOffset(
-                        $0.fileOffset + numericCast(file.offset)
-                    )
-                }
-        }.flatMap { $0 }
-        _mappingInfos = mappingInfos
-        return mappingInfos
+        _mappingInfos
     }
 
     /// Sequence of mapping and slide infos
     public var mappingAndSlideInfos: [DyldCacheMappingAndSlideInfo]? {
-        if let _mappingAndSlideInfos { return _mappingAndSlideInfos }
-        let mappingAndSlideInfos = zip(fileHandle._files, allCaches).compactMap { file, cache in
-            cache.mappingAndSlideInfos?
-                .map {
-                    $0.withFileOffset(
-                        $0.fileOffset + numericCast(file.offset)
-                    )
-                    .withSlideInfoFileOffset(
-                        $0.slideInfoFileOffset == 0
-                            ? 0
-                            : $0.slideInfoFileOffset + numericCast(file.offset)
-                    )
-                }
-        }.flatMap { $0 }
-        _mappingAndSlideInfos = mappingAndSlideInfos
-        return mappingAndSlideInfos
+        _mappingAndSlideInfos
     }
 
     /// Sequence of image infos.
@@ -185,10 +194,9 @@ extension FullDyldCache {
     /// DyldCache containing unmapped local symbols
     public var symbolCache: DyldCache? {
         get throws {
-            if let _symbolCache = _symbolCache { return _symbolCache }
-            let symbolCache = try mainCache.symbolCache
-            _symbolCache = symbolCache
-            return symbolCache
+            if let symbolCache = _symbolCache { return symbolCache }
+            guard let symbolCache = try mainCache.symbolCache else { return nil }
+            return memoizedSymbolCache.publish(symbolCache)
         }
     }
 

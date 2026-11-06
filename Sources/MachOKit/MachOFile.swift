@@ -27,8 +27,20 @@ public class MachOFile: MachORepresentable {
     let _fileHandleIdentity: FileHandleIdentityBox
 
     // Retain the cache to which `self` belongs
-    private var _fullCache: FullDyldCache?
-    private var _cache: DyldCache?
+    private let memoizedFullCache = MemoizedReference<FullDyldCache>()
+    // The cache an image of a dyld cache was assembled from. It never
+    // changes, so the reads that ask for it on every value take no lock.
+    private let assembledCache: DyldCache?
+    // The cache opened later, for a file that was not assembled from one.
+    private let memoizedCache = MemoizedReference<DyldCache>()
+
+    private var _fullCache: FullDyldCache? {
+        memoizedFullCache.value
+    }
+
+    private var _cache: DyldCache? {
+        assembledCache ?? memoizedCache.value
+    }
 
     /// A Boolean value that indicates whether the byte is swapped or not.
     ///
@@ -141,7 +153,7 @@ public class MachOFile: MachORepresentable {
         self._fileHandleIdentity = FileHandleIdentityStore.identity(
             for: fileHandle
         )
-        self._cache = cache
+        self.assembledCache = cache
 
         self.headerStartOffset = headerStartOffset
         self.headerStartOffsetInCache = headerStartOffsetInCache
@@ -651,16 +663,17 @@ extension MachOFile {
     /// This is mainly used when the Mach-O file originates from a dyld shared cache and requires
     /// access to symbols, sections, or other data spread across subcaches.
     public var cache: DyldCache? {
-        if let _cache { return _cache }
-        if let _fullCache {
-            return _fullCache.cache(for: url)
+        if let assembledCache { return assembledCache }
+        if let cache = memoizedCache.value { return cache }
+        if let fullCache = _fullCache {
+            return fullCache.cache(for: url)
         }
         // Opening a standalone file as a cache fails, and a failure is not
         // remembered: callers that ask on every read would map and unmap the
         // whole file each time.
         guard isLoadedFromDyldCache else { return nil }
-        _cache = try? .init(url: url)
-        return _cache
+        guard let cache = try? DyldCache(url: url) else { return nil }
+        return memoizedCache.publish(cache)
     }
 
     /// The `FullDyldCache` object associated with this Mach-O file, if available.
@@ -675,19 +688,20 @@ extension MachOFile {
     /// This is primarily used when the Mach-O file originates from a dyld shared cache and data in other
     /// subcache files needs to be accessed.
     public var fullCache: FullDyldCache? {
-        if let _fullCache { return _fullCache }
-        if let _cache,
-           let _fullCache = _cache._fullCache {
-            return _fullCache
+        if let fullCache = _fullCache { return fullCache }
+        if let cache = _cache,
+           let fullCache = cache._fullCache {
+            return fullCache
         }
         guard isLoadedFromDyldCache else { return nil }
-        _fullCache = try? .init(
+        guard let fullCache = try? FullDyldCache(
             url: url
                 .deletingPathExtension()
                 .deletingPathExtension()
-        )
-        _cache?._fullCache = _fullCache
-        return _fullCache
+        ) else { return nil }
+        let publishedFullCache = memoizedFullCache.publish(fullCache)
+        _cache?._fullCache = publishedFullCache
+        return publishedFullCache
     }
 }
 
