@@ -4,6 +4,7 @@
 //
 
 import Foundation
+internal import FileIO
 
 extension SectionProtocol {
     /// Returns the file-backed contents of this section.

@@ -7,6 +7,7 @@
 //
 
 import Foundation
+internal import FileIO
 
 extension CodeSignCodeDirectory {
     public func runtime(in signature: MachOFile.CodeSign) -> Runtime? {

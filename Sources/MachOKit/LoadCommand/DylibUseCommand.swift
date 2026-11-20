@@ -7,6 +7,7 @@
 //
 
 import Foundation
+internal import FileIOBinary
 
 public struct DylibUseCommand: LoadCommandWrapper {
     public typealias Layout = dylib_use_command

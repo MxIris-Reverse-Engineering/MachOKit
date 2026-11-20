@@ -7,6 +7,7 @@
 //
 
 import Foundation
+internal import FileIOBinary
 
 public protocol ObjCHeaderOptimizationRWProtocol: Sendable {
     associatedtype HeaderInfo: ObjCHeaderInfoRWProtocol

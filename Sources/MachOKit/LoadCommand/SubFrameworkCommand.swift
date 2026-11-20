@@ -6,6 +6,7 @@
 //  
 //
 
+internal import FileIOBinary
 public struct SubFrameworkCommand: LoadCommandWrapper {
     public typealias Layout = sub_framework_command
 

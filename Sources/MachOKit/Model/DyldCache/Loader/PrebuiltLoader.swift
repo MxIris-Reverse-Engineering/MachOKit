@@ -7,6 +7,7 @@
 //
 
 import Foundation
+internal import FileIOBinary
 
 public struct PrebuiltLoader: LayoutWrapper, PrebuiltLoaderProtocol {
     public typealias Layout = prebuilt_loader

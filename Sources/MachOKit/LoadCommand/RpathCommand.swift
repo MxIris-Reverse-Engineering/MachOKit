@@ -7,6 +7,7 @@
 //
 
 import Foundation
+internal import FileIOBinary
 
 public struct RpathCommand: LoadCommandWrapper {
     public typealias Layout = rpath_command

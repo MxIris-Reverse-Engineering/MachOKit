@@ -7,6 +7,7 @@
 //
 
 import Foundation
+internal import FileIO
 
 public struct NoteCommand: LoadCommandWrapper {
     public typealias Layout = note_command

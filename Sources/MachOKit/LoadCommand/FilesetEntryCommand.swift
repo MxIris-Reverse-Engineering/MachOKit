@@ -6,6 +6,7 @@
 //  
 //
 
+internal import FileIOBinary
 public struct FilesetEntryCommand: LoadCommandWrapper {
     public typealias Layout = fileset_entry_command
 

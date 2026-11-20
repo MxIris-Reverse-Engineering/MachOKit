@@ -4,6 +4,7 @@
 //
 
 import Foundation
+internal import FileIOBinary
 
 /// A decoded Objective-C message-send stub.
 public struct ObjCStub: Sendable, Equatable {

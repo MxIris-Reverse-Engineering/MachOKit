@@ -8,6 +8,7 @@
 
 import Foundation
 import MachOKitC
+internal import FileIOBinary
 
 public struct AotInstructionMap: Sendable {
     public let header: AotInstructionMapHeader

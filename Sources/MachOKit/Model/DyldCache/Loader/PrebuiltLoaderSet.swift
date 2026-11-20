@@ -7,6 +7,8 @@
 //
 
 import Foundation
+internal import FileIO
+internal import FileIOBinary
 
 public struct PrebuiltLoaderSet: LayoutWrapper, Sendable {
     public typealias Layout = prebuilt_loader_set

@@ -8,6 +8,7 @@
 
 import Foundation
 import MachOKitC
+internal import FileIOBinary
 
 public struct DyldCachePrewarming: LayoutWrapper, Sendable {
     public typealias Layout = dyld_prewarming_header

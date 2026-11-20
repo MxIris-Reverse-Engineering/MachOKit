@@ -7,6 +7,7 @@
 //
 
 import Foundation
+internal import FileIOBinary
 
 public protocol SegmentCommandProtocol: LoadCommandWrapper {
     associatedtype SectionType: SectionProtocol

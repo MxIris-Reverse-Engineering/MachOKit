@@ -7,6 +7,7 @@
 //
 
 import Foundation
+internal import FileIOBinary
 
 public struct BuildVersionCommand: LoadCommandWrapper {
     public typealias Layout = build_version_command

@@ -7,6 +7,7 @@
 //
 
 import MachOKitC
+internal import FileIO
 
 public struct AotCodeFragment: LayoutWrapper, Sendable {
     public typealias Layout = aot_code_fragment_metadata

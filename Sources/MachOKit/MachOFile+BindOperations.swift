@@ -7,6 +7,7 @@
 //
 
 import Foundation
+internal import FileIO
 
 extension MachOFile {
     public struct BindOperations: Sequence, Sendable {

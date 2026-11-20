@@ -7,6 +7,7 @@
 //
 
 import Foundation
+internal import FileIOBinary
 
 public struct TargetTripleCommand: LoadCommandWrapper {
     public typealias Layout = target_triple_command

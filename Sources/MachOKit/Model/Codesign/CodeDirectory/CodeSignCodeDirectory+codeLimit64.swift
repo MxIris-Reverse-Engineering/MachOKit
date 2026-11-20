@@ -7,6 +7,7 @@
 //
 
 import Foundation
+internal import FileIO
 
 extension CodeSignCodeDirectory {
     public func codeLimit64(in signature: MachOFile.CodeSign) -> CodeLimit64? {

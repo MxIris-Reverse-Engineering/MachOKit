@@ -7,6 +7,7 @@
 //
 
 import MachOKitC
+internal import FileIOBinary
 
 public struct AotBranchData: Sendable {
     public let header: AotBranchDataHeader
