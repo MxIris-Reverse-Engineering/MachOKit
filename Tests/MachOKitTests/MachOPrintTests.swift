@@ -565,7 +565,10 @@ extension MachOPrintTests {
 
 extension MachOPrintTests {
     func testFindSymbolByName() {
-        let name = "$s13MachOKitTests0a10OFilePrintC0C11testSymbolsyyKF0aB011LoadCommandOAE05DylibI0VcAGmcfu_AgIcfu0_"
+        // A curry thunk the test binary itself contains. In Swift 6 language
+        // mode an unapplied reference to `LoadCommand.dylib` is inferred
+        // `@Sendable` (SE-0418), so the thunk's mangling carries `Yb`.
+        let name = "$s13MachOKitTests0a10OFilePrintC0C11testSymbolsyyKF0aB011LoadCommandOAE05DylibI0VYbcAGmYbcfu_AgIYbcfu0_"
         let demangledName = "MachOKitTests.MachOFilePrintTests.testLinkerOptionCommand() -> ()"
 
         guard let symbol = machO.symbols(named: name).first else {

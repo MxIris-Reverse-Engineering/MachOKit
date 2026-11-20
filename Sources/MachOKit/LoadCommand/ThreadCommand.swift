@@ -7,6 +7,7 @@
 //
 
 import Foundation
+internal import FileIO
 
 public struct ThreadCommand: LoadCommandWrapper {
     public typealias Layout = thread_command

@@ -1,4 +1,4 @@
-// swift-tools-version: 5.10
+// swift-tools-version: 6.0
 
 import PackageDescription
 
@@ -73,7 +73,7 @@ let package = Package(
                     condition: .when(platforms: linuxPlatforms)
                 )
             ],
-            swiftSettings: SwiftSetting.allCases + [
+            swiftSettings: [
                 .enableExperimentalFeature("AccessLevelOnImport", .when(configuration: .debug))
             ]
         ),
@@ -141,31 +141,19 @@ if isForBinaryKitFramework {
     ]
 }
 
-// https://github.com/treastrain/swift-upcomingfeatureflags-cheatsheet
-extension SwiftSetting {
-    static let forwardTrailingClosures: Self = .enableUpcomingFeature("ForwardTrailingClosures")              // SE-0286, Swift 5.3,  SwiftPM 5.8+
-    static let existentialAny: Self = .enableUpcomingFeature("ExistentialAny")                                // SE-0335, Swift 5.6,  SwiftPM 5.8+
-    static let bareSlashRegexLiterals: Self = .enableUpcomingFeature("BareSlashRegexLiterals")                // SE-0354, Swift 5.7,  SwiftPM 5.8+
-    static let conciseMagicFile: Self = .enableUpcomingFeature("ConciseMagicFile")                            // SE-0274, Swift 5.8,  SwiftPM 5.8+
-    static let importObjcForwardDeclarations: Self = .enableUpcomingFeature("ImportObjcForwardDeclarations")  // SE-0384, Swift 5.9,  SwiftPM 5.9+
-    static let disableOutwardActorInference: Self = .enableUpcomingFeature("DisableOutwardActorInference")    // SE-0401, Swift 5.9,  SwiftPM 5.9+
-    static let deprecateApplicationMain: Self = .enableUpcomingFeature("DeprecateApplicationMain")            // SE-0383, Swift 5.10, SwiftPM 5.10+
-    static let isolatedDefaultValues: Self = .enableUpcomingFeature("IsolatedDefaultValues")                  // SE-0411, Swift 5.10, SwiftPM 5.10+
-    static let globalConcurrency: Self = .enableUpcomingFeature("GlobalConcurrency")                          // SE-0412, Swift 5.10, SwiftPM 5.10+
-}
+// MARK: - Upcoming Features
 
-extension SwiftSetting: @retroactive CaseIterable {
-    public static var allCases: [Self] {
-        [
-            .forwardTrailingClosures,
-            .existentialAny,
-            .bareSlashRegexLiterals,
-            .conciseMagicFile,
-            .importObjcForwardDeclarations,
-            .disableOutwardActorInference,
-            .deprecateApplicationMain,
-            .isolatedDefaultValues,
-            .globalConcurrency
-        ]
-    }
+// Swift 6 language mode (the default for swift-tools-version 6.0) already
+// turns on every upcoming feature of the Swift 5 era. These three are the
+// Swift 7 ones the MachO packages adopt, on every Swift target. A compiler
+// that does not know a feature name (MemberImportVisibility needs 6.1,
+// InferIsolatedConformances 6.2) ignores it, so Swift 6.0 still builds.
+let upcomingFeatureSettings: [SwiftSetting] = [
+    .enableUpcomingFeature("ExistentialAny"),
+    .enableUpcomingFeature("MemberImportVisibility"),
+    .enableUpcomingFeature("InferIsolatedConformances"),
+]
+
+for target in package.targets where target.type != .system && target.type != .binary && target.type != .plugin {
+    target.swiftSettings = (target.swiftSettings ?? []) + upcomingFeatureSettings
 }

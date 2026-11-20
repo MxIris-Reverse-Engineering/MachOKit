@@ -7,6 +7,8 @@
 //
 
 import Foundation
+internal import FileIOBinary
+internal import FileIO
 
 public struct AotMetadataCommand: LoadCommandWrapper {
     public typealias Layout = aot_metadata_command

@@ -7,6 +7,8 @@
 //
 
 import Foundation
+internal import FileIOBinary
+internal import FileIO
 
 public struct DyldCacheLocalSymbolsInfo: LayoutWrapper, Sendable {
     public typealias Layout = dyld_cache_local_symbols_info

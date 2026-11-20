@@ -11,6 +11,7 @@ import MachOKitC
 
 #if canImport(CommonCrypto)
 import CommonCrypto
+internal import FileIO
 #else
 #if compiler(>=6.0)
 private import Crypto

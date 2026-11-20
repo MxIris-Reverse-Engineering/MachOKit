@@ -8,6 +8,7 @@
 
 import Foundation
 import MachOKitC
+internal import FileIOBinary
 
 public struct ObjCOptimization: LayoutWrapper, Sendable {
     public typealias Layout = objc_optimization

@@ -4,6 +4,7 @@
 //
 
 import Foundation
+internal import FileIO
 
 // MARK: - file bytes
 

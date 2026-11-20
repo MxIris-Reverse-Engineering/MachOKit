@@ -8,6 +8,7 @@
 
 import Foundation
 import MachOKitC
+internal import FileIO
 
 public struct CodeSignSuperBlob: LayoutWrapper, Sendable {
     public typealias Layout = CS_SuperBlob

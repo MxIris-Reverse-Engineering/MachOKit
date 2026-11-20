@@ -8,6 +8,7 @@
 
 import Foundation
 import MachOKitC
+internal import FileIOBinary
 
 public enum OldObjCOptimization: Sendable {
     case v12(OldObjCOptimization12)

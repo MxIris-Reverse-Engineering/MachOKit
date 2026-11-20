@@ -7,6 +7,7 @@
 //
 
 import Foundation
+internal import FileIO
 
 extension CodeSignCodeDirectory {
     public func executableSegment(in signature: MachOFile.CodeSign) -> ExecutableSegment? {

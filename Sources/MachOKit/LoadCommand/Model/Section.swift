@@ -7,6 +7,7 @@
 //
 
 import Foundation
+internal import FileIOBinary
 
 public protocol SectionProtocol: LayoutWrapper, Sendable {
     /// Name of this section

@@ -8,6 +8,7 @@
 
 import Foundation
 import MachOKitC
+internal import FileIO
 
 public protocol CFStringProtocol: Sendable {
     /// The unslid virtual memory address of this record.

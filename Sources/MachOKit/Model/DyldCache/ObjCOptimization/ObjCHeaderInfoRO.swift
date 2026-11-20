@@ -7,6 +7,8 @@
 //
 
 import Foundation
+internal import FileIO
+internal import FileIOBinary
 
 public protocol ObjCHeaderInfoROProtocol: Sendable {
     associatedtype HeaderOptimizationRO: ObjCHeaderOptimizationROProtocol, LayoutWrapper

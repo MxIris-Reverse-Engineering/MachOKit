@@ -7,6 +7,7 @@
 //
 
 import Foundation
+internal import FileIO
 
 extension CodeSignCodeDirectory {
     public func teamIdOffset(in signature: MachOFile.CodeSign) -> TeamIdOffset? {

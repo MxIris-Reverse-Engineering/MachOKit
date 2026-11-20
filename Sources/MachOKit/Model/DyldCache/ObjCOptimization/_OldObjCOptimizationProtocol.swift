@@ -8,6 +8,7 @@
 
 import Foundation
 import MachOKitC
+internal import FileIOBinary
 
 protocol _OldObjCOptimizationProtocol {
     var offset: Int { get }

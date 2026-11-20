@@ -7,6 +7,7 @@
 //
 
 import Foundation
+internal import FileIOBinary
 
 public struct DyldCacheImageInfo: LayoutWrapper, Sendable {
     public typealias Layout = dyld_cache_image_info

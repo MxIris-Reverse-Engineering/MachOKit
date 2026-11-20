@@ -8,6 +8,7 @@
 
 import Foundation
 import MachOKitC
+internal import FileIOBinary
 
 public struct DyldCacheFunctionVariantInfo: LayoutWrapper, Sendable {
     public typealias Layout = dyld_cache_function_variant_info
